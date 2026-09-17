@@ -72,8 +72,7 @@ Copy from `fin-vix-signal` or `fin-trading-engine`:
 
 **Step 1 complete (2026-09-17).** Venue access researched. See `research/01_venue_access.md`.
 
-**Blocker:** SVXY is a US ETF, blocked for EU retail by PRIIPs (no KID).
-Two workarounds: (A) short via IBKR CFD if available, (B) professional client opt-up.
-Manual check needed: log into IBKR, verify SVXY is in the CFD product list.
-
-**Next:** resolve access path, then Step 2 (real cost data).
+**KILLED (2026-09-17).** Backtest rejects the strategy. Mean net return -1.16%,
+median -2.13%, drop-top-5% -2.60%. The BTC signal is real but SVXY contango decay
+eats the edge on mild VIX moves. Cost was not the problem (only 0.14%/trade).
+See `research/02_backtest_result.md`.
