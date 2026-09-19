@@ -33,7 +33,7 @@ DATA = ROOT / "data"
 DATA.mkdir(exist_ok=True)
 
 HOLD_DAYS = 10
-COMMISSION_BPS = 1.6  # 0.5c/share each way at ~$63
+COMMISSION_BPS = 1.6  # 0.5c/share each way at ~$63; already round-trip, but charged 2x on L120
 FINANCING_SPREAD = 0.015  # 1.5% above benchmark
 
 
@@ -114,6 +114,7 @@ def main():
             benchmark = float(ff_aligned.loc[entry_date])
         else:
             benchmark = 0.05  # fallback
+        # ponytail: charges 10 sessions, actual span is ~14 calendar nights; tiny vs -1.03% gross
         financing_cost = (benchmark + FINANCING_SPREAD) * (HOLD_DAYS / 360)
 
         # Commission cost
