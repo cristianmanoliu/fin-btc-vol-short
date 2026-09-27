@@ -1,78 +1,60 @@
 # fin-btc-vol-short
 
-**Idea:** BTC EMA 9/21 bearish cross → short inverse VIX ETPs (SVXY / ZIVB)
+**Verdict: KILLED 2026-09-17.** The backtest rejects this strategy. The mean net trade-return is -1.16%, the median is -2.13%, and the drop-top-5% is -2.60%. The BTC signal is correct, but SVXY contango decrease removes the profit on small VIX moves. Cost was not the problem (0.14% for each trade).
 
-## Origin
+## Idea
 
-Spin-off from `fin-vix-signal` (killed 2026-09-17). The BTC timing signal is real
-(mean VVIX at cross dates = 100.6, VIX spikes reliably after bearish EMA cross) but
-VIX call options are untradeable — you buy expensive vol exactly when the signal fires.
+A BTC EMA 9/21 bearish cross shows VIX elevation in the subsequent 10 to 21 days. Short SVXY at the cross and close the position after 10 sessions.
 
-**This project tests a different cost geometry:** instead of buying calls, short an
-inverse-VIX ETP. SVXY and similar products move inversely to VIX. A VIX spike = SVXY
-drops = short profits. No options premium to pay, no IV-of-VIX risk eating the edge.
+This project uses `fin-vix-signal` (killed 2026-09-17) as its starting point. That project found a correct BTC timing signal (mean VVIX at cross dates = 100.6). But VIX call options are not tradeable at the moment the signal fires. IV is elevated at that moment, so the call options are expensive. Shorting an inverse-VIX ETP removes the call option premium and IV-of-VIX risk.
 
-## Hypothesis
+## Why it might work
 
-BTC EMA 9/21 bearish cross predicts VIX elevation over the next 10–21 days.
-Shorting SVXY at the cross and covering after N days should capture that move
-without the options cost trap.
+- The financing cost (CFD overnight at benchmark + 1.5%) does not correlate with signal strength.
+- SVXY has daily liquidity and fills are possible.
 
-## Why this might work
+## Why it might fail
 
-- Cost is borrow + spread (roughly 1–3% annualized), not a large upfront premium.
-- Entry cost does NOT correlate with signal strength (unlike VVIX, which spikes exactly
-  when you want to buy calls).
-- SVXY has daily liquidity; fills are realistic.
+- SVXY has path-dependent decrease. Volatility drag works against short positions in low-vol periods.
+- A short SVXY position is a leveraged VIX long with daily rebalancing. Vol-of-vol is important.
+- 84 signals in 11 years is less than the 63-trade CI floor, so statistical power is marginal.
 
-## Why this might fail
+## Research protocol
 
-- SVXY has path-dependent decay — volatility drag works against shorts in low-vol periods.
-- Short SVXY is a leveraged VIX long with daily rebalancing; the vol-of-vol matters.
-- Borrow costs can spike during stress (when you most want the short on).
-- 84 signals over 11 years is still below the 63-trade CI floor — power is marginal.
+The steps operate in cheapest-disqualifier sequence. One criterion that is not satisfactory rejects the strategy.
 
-## Method (follow cheapest-disqualifier order from parent project)
+1. **Venue access.** Can the user short SVXY from Romania through IBKR? See `research/01_venue_access.md`. The result: YES through CFD (ConId 290657198, PRIIPs-compliant).
+2. **Cost data.** Get the actual borrow rates. If borrow is more than 5% annualized in stress periods, the trading edge may not survive.
+3. **Pre-registration.** Commit the hypothesis, hold period, and accept/reject criteria before a backtest.
+4. **Honest backtest.** Use actual SVXY price data. Apply `honesty()`: median, drop-top-5%, by-year. If a single criterion is not satisfactory, reject the strategy.
+5. **Overfit gate.** PBO + Deflated Sharpe.
+6. Write execution code only after step 5 is satisfactory.
 
-1. **Venue access:** can SVXY be shorted from Romania via IBKR? Check margin/borrow
-   availability before any analysis.
-2. **Real cost data:** get actual borrow rates for SVXY (Interactive Brokers stock loan).
-   If borrow > 5% annualized during stress periods, the edge may not survive.
-3. **Pre-register:** commit hypothesis, hold period, and accept/reject criteria BEFORE
-   running any backtest.
-4. **Honest backtest:** use real SVXY price data (yfinance: `SVXY`). Apply `honesty()`
-   battery — median, drop-top-5%, by-year. Any single criterion failing = reject.
-5. **Overfit gate:** PBO + Deflated Sharpe (copy `scripts/backtest_overfit_analysis.py`
-   from `fin-trading-engine`).
-6. Only then: write execution code.
+Steps 5 and 6 were not completed. The backtest rejected the strategy at step 4.
 
-## Parameters to pre-register (do NOT change after seeing results)
+## Pre-registered parameters
 
-- Signal: BTC EMA 9/21 bearish cross (same definition as `fin-vix-signal`)
-- Hold period: **10 days** (best in spike, but treat as fitted — document this)
-- Entry: short SVXY at next open after signal
-- Exit: cover at close on day N
-- Accept criteria: median R > 0, drop-top-5% R > 0, all years ≥ −1.0R
+- Signal: BTC EMA 9/21 bearish cross
+- Hold period: 10 sessions
+- Entry: short SVXY at the next open after the signal
+- Exit: close the position at the close on day N
+- Accept criteria: median R > 0, drop-top-5% R > 0, all years >= -1.0R
 
-## Portable tools
+These parameters are set. Do not change them after you see results. A change to them after results is selection, not discovery.
 
-Copy from `fin-vix-signal` or `fin-trading-engine`:
-- `scripts/generate_signals.py` — BTC EMA cross dates (already written)
-- `scripts/quant_honesty.py` — `screen()` + `honesty()`
-- `scripts/backtest_overfit_analysis.py` — PBO + Deflated Sharpe
+## Scripts
 
-## Key constraints (inherited from parent project)
+```bash
+python3 scripts/quant_honesty.py --selftest   # offline selftest, prints "selftest OK"
+python3 scripts/backtest_svxy_short.py        # full study, needs network (yfinance)
+python3 scripts/generate_signals.py           # optional: dump signal dates with VIX/VVIX
+```
 
-- Drop-top-5% is the decisive honesty check — never skip it.
-- Cost is deterministic; gross is a random variable. Require gross ≥ 3× cost.
-- Running N variants and picking the best is selection, not discovery.
-- A universe-wide parameter gain does not transfer to a selected book (corr = −0.523).
+`backtest_svxy_short.py` writes to `data/svxy_short_trades.csv` (84 trades, the committed sign of the verdict). After a run, make sure that `git diff data/` shows the expected change. Put the file back unless changing the sign is the purpose of the work.
 
-## Status
+## Key constraints
 
-**Step 1 complete (2026-09-17).** Venue access researched. See `research/01_venue_access.md`.
-
-**KILLED (2026-09-17).** Backtest rejects the strategy. Mean net return -1.16%,
-median -2.13%, drop-top-5% -2.60%. The BTC signal is real but SVXY contango decay
-eats the edge on mild VIX moves. Cost was not the problem (only 0.14%/trade).
-See `research/02_backtest_result.md`.
+- Drop-top-5% is the decisive honesty test. Do not skip it.
+- Make sure that gross is >= 3x cost before you operate a backtest.
+- To select N variants and pick the best is selection, not discovery.
+- A universe-wide parameter increase does not move to a selected book (corr = -0.523).
